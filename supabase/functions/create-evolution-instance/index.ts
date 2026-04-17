@@ -1,6 +1,65 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, jsonResponse, requireAuth } from "../_shared/auth.ts";
+
+// CORS Headers
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+// JSON Response helper
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+// Auth validation
+async function requireAuth(
+  req: Request,
+  opts: { requireAdmin?: boolean } = {}
+) {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return jsonResponse({ success: false, error: "Não autenticado" }, 401);
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+
+  const token = authHeader.replace("Bearer ", "");
+  const { data, error } = await userClient.auth.getClaims(token);
+  if (error || !data?.claims?.sub) {
+    return jsonResponse({ success: false, error: "Token inválido" }, 401);
+  }
+
+  const userId = data.claims.sub as string;
+  const email = data.claims.email as string | undefined;
+
+  // Check role using service-role client (bypasses RLS)
+  const adminClient = createClient(supabaseUrl, serviceKey);
+  const { data: roleData } = await adminClient
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .maybeSingle();
+
+  const isAdmin = !!roleData;
+
+  if (opts.requireAdmin && !isAdmin) {
+    return jsonResponse({ success: false, error: "Acesso restrito a administradores" }, 403);
+  }
+
+  return { userId, email, isAdmin };
+}
 
 serve(async (req) => {
   console.log(`[create-evolution-instance] Received ${req.method} request`);
@@ -10,7 +69,7 @@ serve(async (req) => {
   }
 
   const auth = await requireAuth(req, { requireAdmin: true });
-  console.log('[create-evolution-instance] Auth result:', auth instanceof Response ? { isResponse: true, status: auth.status } : { isResponse: false, userId: auth.userId, isAdmin: auth.isAdmin });
+  console.log('[create-evolution-instance] Auth result:', auth instanceof Response ? { isResponse: true, status: (auth as any).status } : { isResponse: false, userId: (auth as any).userId, isAdmin: (auth as any).isAdmin });
   if (auth instanceof Response) {
     console.log('[create-evolution-instance] ❌ Auth failed, returning response');
     return auth;
