@@ -1,4 +1,5 @@
 import { corsHeaders, requireAuth } from "../_shared/auth.ts";
+import { detectAIProvider, callAIProvider } from "../_shared/ai-providers.ts";
 
 const SYSTEM_PROMPT = `Você é um assistente conversacional que ajuda a configurar buscas de leads para prospecção B2B.
 
@@ -204,43 +205,37 @@ Deno.serve(async (req) => {
     if (!Array.isArray(messages) || messages.length > 100) throw new Error("messages inválidos");
     console.log("[lead-search-ai-chat] Received", messages?.length, "messages");
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    // Detecta qual provedor de IA usar
+    const aiConfig = detectAIProvider();
+    console.log(`[lead-search-ai-chat] Usando provider: ${aiConfig.provider}`);
 
     let systemPrompt = SYSTEM_PROMPT;
     if (lists?.length) {
       systemPrompt += `\n\nListas disponíveis:\n${lists.map((l: any) => `- "${l.name}" (ID: ${l.id})`).join("\n")}`;
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [{ role: "system", content: systemPrompt }, ...messages],
-        tools: TOOLS,
-        stream: true,
-      }),
+    const response = await callAIProvider(aiConfig, {
+      systemPrompt,
+      messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
+      tools: TOOLS,
+      stream: true,
     });
 
     if (!response.ok) {
       const status = response.status;
       const t = await response.text();
-      console.error("[lead-search-ai-chat] AI gateway error:", status, t);
+      console.error(`[lead-search-ai-chat] AI provider error (${aiConfig.provider}):`, status, t);
       if (status === 429) {
         return new Response(JSON.stringify({ error: "Limite de requisições excedido." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (status === 402 || status === 401) {
+        return new Response(JSON.stringify({ error: "Chave de API inválida ou créditos insuficientes." }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify({ error: "Erro no gateway de IA" }), {
+      return new Response(JSON.stringify({ error: `Erro no provider de IA (${aiConfig.provider})` }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

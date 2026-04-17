@@ -1,4 +1,5 @@
 import { corsHeaders, requireAuth } from "../_shared/auth.ts";
+import { detectAIProvider, callAIProvider } from "../_shared/ai-providers.ts";
 
 const SYSTEM_PROMPT_BASE = `Você é um assistente conversacional e amigável que ajuda a configurar sequências de follow-up para WhatsApp marketing.
 
@@ -152,8 +153,9 @@ Deno.serve(async (req) => {
     if (!Array.isArray(messages) || messages.length > 100) throw new Error("messages inválidos");
     console.log("[followup-ai-chat] Received request with", messages?.length, "messages", editingSequence ? `(editing: ${editingSequence.name})` : "(new)");
     
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    // Detecta qual provedor de IA usar
+    const aiConfig = detectAIProvider();
+    console.log(`[followup-ai-chat] Usando provider: ${aiConfig.provider}`);
 
     // Build dynamic system prompt with available flows and campaigns
     let systemPrompt = SYSTEM_PROMPT_BASE;
@@ -169,36 +171,29 @@ Deno.serve(async (req) => {
       systemPrompt += `\n\n─── MODO EDIÇÃO ───\nVocê está editando a sequência existente. Use edit_followup_sequence para aplicar alterações.\n\nConfiguração atual:\n${JSON.stringify(editingSequence, null, 2)}`;
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [{ role: "system", content: systemPrompt }, ...messages],
-        tools: TOOLS,
-        stream: true,
-      }),
+    const response = await callAIProvider(aiConfig, {
+      systemPrompt,
+      messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
+      tools: TOOLS,
+      stream: true,
     });
 
     if (!response.ok) {
       const status = response.status;
       const t = await response.text();
-      console.error("[followup-ai-chat] AI gateway error:", status, t);
+      console.error(`[followup-ai-chat] AI provider error (${aiConfig.provider}):`, status, t);
       
       if (status === 429) {
         return new Response(JSON.stringify({ error: "Limite de requisições excedido, tente novamente em alguns segundos." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (status === 402 || status === 401) {
+        return new Response(JSON.stringify({ error: "Chave de API inválida ou créditos insuficientes." }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify({ error: "Erro no gateway de IA" }), {
+      return new Response(JSON.stringify({ error: `Erro no provider de IA (${aiConfig.provider})` }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
