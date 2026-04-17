@@ -77,7 +77,7 @@ export function useContacts(listId?: string | null) {
   // Realtime for contacts and contact_lists
   useEffect(() => {
     const channel = supabase
-      .channel("contacts-realtime")
+      .channel(`contacts-realtime-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "contacts" }, () => {
         queryClient.invalidateQueries({ queryKey: ["contacts"] });
         queryClient.invalidateQueries({ queryKey: ["contact-lists"] });
