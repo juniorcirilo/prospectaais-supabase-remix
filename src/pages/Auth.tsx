@@ -23,14 +23,26 @@ export default function Auth() {
 
   useEffect(() => {
     const fetchRegistrationSetting = async () => {
-      const { data } = await supabase
-        .from('system_settings' as any)
-        .select('id, registration_enabled')
-        .limit(1)
-        .maybeSingle();
-      if (data) {
-        setRegistrationEnabled((data as any).registration_enabled);
-      } else {
+      try {
+        const { data, error } = await supabase
+          .from('system_settings' as any)
+          .select('id, registration_enabled')
+          .limit(1)
+          .maybeSingle();
+        
+        if (error) {
+          console.warn("Could not fetch system_settings:", error);
+          setRegistrationEnabled(true);
+          return;
+        }
+        
+        if (data) {
+          setRegistrationEnabled((data as any).registration_enabled ?? true);
+        } else {
+          setRegistrationEnabled(true);
+        }
+      } catch (err) {
+        console.warn("Error fetching registration setting:", err);
         setRegistrationEnabled(true);
       }
     };

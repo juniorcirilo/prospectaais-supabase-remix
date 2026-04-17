@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, jsonResponse, requireAuth } from "../_shared/auth.ts";
+import { detectAIProvider, callAIProvider } from "../_shared/ai-providers.ts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -50,21 +51,11 @@ serve(async (req) => {
 - Mídias: ${(c.media_urls || []).length} arquivo(s), modo=${c.media_rotation_mode}`;
     }).join("\n\n---\n\n");
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    // Use multi-provider AI instead of hardcoded Lovable
+    const aiConfig = detectAIProvider();
+    console.log(`[campaign-ai-analysis] Using provider: ${aiConfig.provider}`);
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "system",
-            content: `Você é um analista especialista em campanhas de disparo WhatsApp.
+    const systemPrompt = `Você é um analista especialista em campanhas de disparo WhatsApp.
 Analise as campanhas fornecidas e retorne uma análise estruturada usando a tool "campaign_analysis".
 
 Para o campo "sections" crie seções com análise detalhada. Cada seção tem título e conteúdo em Markdown.
@@ -79,20 +70,26 @@ Exemplos de charts úteis:
 - Riscos identificados (score de severity)
 - Comparação de configurações do motor
 
-Seja direto, técnico e acionável no conteúdo.`,
-          },
-          {
-            role: "user",
-            content: `Analise e compare estas ${campaigns!.length} campanhas:\n\n${campaignSummaries}`,
-          },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "campaign_analysis",
-              description: "Retorna a análise estruturada das campanhas com seções e gráficos",
-              parameters: {
+Seja direto, técnico e acionável no conteúdo.`;
+
+    const messages = [
+      {
+        role: "system" as const,
+        content: systemPrompt,
+      },
+      {
+        role: "user" as const,
+        content: `Analise e compare estas ${campaigns!.length} campanhas:\n\n${campaignSummaries}`,
+      },
+    ];
+
+    const tools = [
+      {
+        type: "function",
+        function: {
+          name: "campaign_analysis",
+          description: "Retorna a análise estruturada das campanhas com seções e gráficos",
+          parameters: {
                 type: "object",
                 properties: {
                   sections: {

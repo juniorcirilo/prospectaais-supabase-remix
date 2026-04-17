@@ -24,7 +24,7 @@ export function detectAIProvider(): AIProviderConfig {
   const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   if (lovableKey) return { provider: "lovable", apiKey: lovableKey, model: "google/gemini-2.5-flash" };
 
-  const geminiKey = Deno.env.get("GOOGLE_GEMINI_API_KEY");
+  const geminiKey = Deno.env.get("GEMINI_API_KEY");
   if (geminiKey) return { provider: "gemini", apiKey: geminiKey, model: "gemini-2.5-flash" };
 
   const openaiKey = Deno.env.get("OPENAI_API_KEY");
@@ -36,7 +36,7 @@ export function detectAIProvider(): AIProviderConfig {
   const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (anthropicKey) return { provider: "anthropic", apiKey: anthropicKey, model: "claude-3-5-sonnet-20241022" };
 
-  throw new Error("Nenhuma chave de IA configurada. Configure uma de: LOVABLE_API_KEY, GOOGLE_GEMINI_API_KEY, OPENAI_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY");
+  throw new Error("Nenhuma chave de IA configurada. Configure uma de: LOVABLE_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY");
 }
 
 /**

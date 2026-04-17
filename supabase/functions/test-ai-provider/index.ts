@@ -1,18 +1,27 @@
-import { corsHeaders, requireAuth } from "../_shared/auth.ts";
+import { corsHeaders } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight first, before any auth checks
   if (req.method === "OPTIONS") {
     return new Response(null, {
-      status: 200,
+      status: 204,
       headers: {
-        ...corsHeaders,
+        "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+        "Access-Control-Max-Age": "86400",
       },
     });
   }
 
-  const auth = await requireAuth(req);
-  if (auth instanceof Response) return auth;
+  // Now check auth for actual requests
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ success: false, error: "Não autenticado" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const { provider, key } = await req.json();
@@ -27,6 +36,7 @@ Deno.serve(async (req) => {
     let testUrl: string;
     let testHeaders: Record<string, string>;
     let testBody: any;
+    let method = "GET";
 
     switch (provider) {
       case "groq":
@@ -45,6 +55,7 @@ Deno.serve(async (req) => {
         testBody = {
           contents: [{ parts: [{ text: "test" }] }],
         };
+        method = "POST";
         break;
 
       case "openai":
@@ -75,6 +86,7 @@ Deno.serve(async (req) => {
           max_tokens: 10,
           messages: [{ role: "user", content: "test" }],
         };
+        method = "POST";
         break;
 
       default:
@@ -84,19 +96,24 @@ Deno.serve(async (req) => {
         });
     }
 
-    const response = await fetch(testUrl, {
-      method: "GET",
+    const fetchOpts: RequestInit = {
+      method,
       headers: testHeaders,
-      ...(testBody && { method: "POST", body: JSON.stringify(testBody) }),
-    });
+    };
+
+    if (testBody) {
+      fetchOpts.body = JSON.stringify(testBody);
+    }
+
+    const response = await fetch(testUrl, fetchOpts);
 
     if (response.ok || response.status === 401) {
-      // 401 significa que a chave foi reconhecida mas pode estar inválida
-      // Mas pelo menos prova que o provider está acessível
       return new Response(
         JSON.stringify({
           success: response.ok,
-          message: response.ok ? `${provider} conectado com sucesso!` : `${provider} reconhecido (chave possivelmente inválida)`,
+          message: response.ok 
+            ? `${provider} conectado com sucesso!` 
+            : `${provider} reconhecido (chave possivelmente inválida)`,
         }),
         {
           status: 200,
@@ -105,15 +122,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    return new Response(JSON.stringify({ error: `Falha ao conectar com ${provider}` }), {
-      status: response.status,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: `Falha ao conectar com ${provider}` }),
+      {
+        status: response.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   } catch (e) {
     console.error("[test-ai-provider] Error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 });
