@@ -79,10 +79,23 @@ export function AddInstanceDialog({ open, onOpenChange }: AddInstanceDialogProps
     setStep('creating');
 
     try {
+      console.log('📤 Enviando para create-evolution-instance:', { instance_name: instanceName, name, is_default: isDefault });
       const { data, error } = await supabase.functions.invoke('create-evolution-instance', {
         body: { instance_name: instanceName, name, is_default: isDefault },
       });
 
+      console.log('📥 Resposta recebida:', { data, error });
+      
+      // Tenta extrair a mensagem de erro completa
+      if (error) {
+        console.error('❌ Erro completo:', {
+          status: (error as any)?.context?.response?.status,
+          statusText: (error as any)?.context?.response?.statusText,
+          data: (error as any)?.context?.response?.data,
+          message: error.message,
+        });
+      }
+      
       if (error || !data?.success) throw new Error(data?.error || error?.message || 'Erro ao criar instância');
 
       setInstanceId(data.instance_id);

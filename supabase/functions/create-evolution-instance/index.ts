@@ -10,16 +10,24 @@ serve(async (req) => {
   }
 
   const auth = await requireAuth(req, { requireAdmin: true });
-  if (auth instanceof Response) return auth;
+  console.log('[create-evolution-instance] Auth result:', auth instanceof Response ? { isResponse: true, status: auth.status } : { isResponse: false, userId: auth.userId, isAdmin: auth.isAdmin });
+  if (auth instanceof Response) {
+    console.log('[create-evolution-instance] ❌ Auth failed, returning response');
+    return auth;
+  }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    const { instance_name, name, is_default } = await req.json().catch(() => ({}));
+    const bodyData = await req.json().catch(() => ({}));
+    console.log('[create-evolution-instance] Body recebido:', JSON.stringify(bodyData));
+    const { instance_name, name, is_default } = bodyData;
+    console.log('[create-evolution-instance] Validando:', { instance_name, name, is_default, instance_name_type: typeof instance_name, name_type: typeof name });
 
     if (typeof instance_name !== 'string' || typeof name !== 'string' || instance_name.length === 0 || name.length === 0 || instance_name.length > 100 || name.length > 100) {
+      console.log('[create-evolution-instance] ❌ Validação falhou!');
       return jsonResponse({ success: false, error: 'instance_name e name são obrigatórios (max 100 chars)' }, 400);
     }
 
@@ -154,10 +162,9 @@ serve(async (req) => {
     });
 
   } catch (error: unknown) {
-    console.error('[create-evolution-instance] Error:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ success: false, error: message }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error('[create-evolution-instance] ❌ Catch Error:', error);
+    console.error('[create-evolution-instance] Error Details:', JSON.stringify(error));
+    const message = error instanceof Error ? error.message : JSON.stringify(error);
+    return jsonResponse({ success: false, error: `Erro na função: ${message}` }, 500);
   }
 });
