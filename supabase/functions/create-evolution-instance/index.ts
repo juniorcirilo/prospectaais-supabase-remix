@@ -22,43 +22,79 @@ serve(async (req) => {
 
   try {
     const bodyData = await req.json().catch(() => ({}));
-    console.log('[create-evolution-instance] Body recebido:', JSON.stringify(bodyData));
+    console.log('[create-evolution-instance] ✅ Body parsed:', JSON.stringify(bodyData));
     const { instance_name, name, is_default } = bodyData;
-    console.log('[create-evolution-instance] Validando:', { instance_name, name, is_default, instance_name_type: typeof instance_name, name_type: typeof name });
+    console.log('[create-evolution-instance] ✅ Extracted vars:', { 
+      instance_name, 
+      name, 
+      is_default,
+      instance_name_type: typeof instance_name,
+      name_type: typeof name,
+      instance_name_len: instance_name?.length,
+      name_len: name?.length,
+    });
 
-    if (typeof instance_name !== 'string' || typeof name !== 'string' || instance_name.length === 0 || name.length === 0 || instance_name.length > 100 || name.length > 100) {
-      console.log('[create-evolution-instance] ❌ Validação falhou!');
-      return jsonResponse({ success: false, error: 'instance_name e name são obrigatórios (max 100 chars)' }, 400);
+    // Detailed validation
+    const isInstanceNameString = typeof instance_name === 'string';
+    const isNameString = typeof name === 'string';
+    const isInstanceNameEmpty = instance_name?.length === 0;
+    const isNameEmpty = name?.length === 0;
+    const isInstanceNameTooLong = instance_name?.length > 100;
+    const isNameTooLong = name?.length > 100;
+
+    console.log('[create-evolution-instance] Validation checks:', {
+      isInstanceNameString,
+      isNameString,
+      isInstanceNameEmpty,
+      isNameEmpty,
+      isInstanceNameTooLong,
+      isNameTooLong,
+    });
+
+    if (!isInstanceNameString || !isNameString || isInstanceNameEmpty || isNameEmpty || isInstanceNameTooLong || isNameTooLong) {
+      const errorMsg = `instance_name e name são obrigatórios (max 100 chars). Got: instance_name=${typeof instance_name}(len:${instance_name?.length}), name=${typeof name}(len:${name?.length})`;
+      console.log('[create-evolution-instance] ❌ Validation FAILED:', errorMsg);
+      return jsonResponse({ success: false, error: errorMsg }, 400);
     }
+    console.log('[create-evolution-instance] ✅ Validation passed');
 
     // Read Evolution API credentials from app_settings
+    console.log('[create-evolution-instance] ✅ Reading app_settings...');
     const { data: settings, error: settingsErr } = await supabase
       .from('app_settings')
       .select('key, value')
       .in('key', ['evolution_api_url', 'evolution_api_key']);
 
     if (settingsErr) {
-      return new Response(JSON.stringify({ success: false, error: 'Erro ao ler configurações' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      console.log('[create-evolution-instance] ❌ Settings error:', settingsErr);
+      return jsonResponse({ success: false, error: `Erro ao ler configurações: ${settingsErr.message}` }, 500);
     }
 
+    console.log('[create-evolution-instance] ✅ Settings retrieved:', settings);
     const settingsMap: Record<string, string> = {};
     for (const s of settings || []) settingsMap[s.key] = s.value;
 
     const api_url = settingsMap['evolution_api_url'];
     const api_key = settingsMap['evolution_api_key'];
 
+    console.log('[create-evolution-instance] Settings map:', { 
+      has_evolution_api_url: !!api_url, 
+      has_evolution_api_key: !!api_key,
+      api_url_sample: api_url?.substring(0, 20),
+      api_key_sample: api_key?.substring(0, 20),
+    });
+
     if (!api_url || !api_key) {
-      return new Response(JSON.stringify({ success: false, error: 'Evolution API não configurada. Vá em Configurações e salve a URL e API Key.' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      const errorMsg = 'Evolution API não configurada. Vá em Configurações e salve a URL e API Key.';
+      console.log('[create-evolution-instance] ❌', errorMsg);
+      return jsonResponse({ success: false, error: errorMsg }, 400);
     }
+    console.log('[create-evolution-instance] ✅ API credentials found');
 
     const baseUrl = api_url.replace(/\/$/, '');
 
     // 1. Create instance on Evolution API
-    console.log(`[create-evolution-instance] Creating instance: ${instance_name} at ${baseUrl}`);
+    console.log(`[create-evolution-instance] ✅ Creating instance: ${instance_name} at ${baseUrl}`);
     const createRes = await fetch(`${baseUrl}/instance/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': api_key },
@@ -71,26 +107,36 @@ serve(async (req) => {
     });
 
     const createText = await createRes.text();
-    console.log(`[create-evolution-instance] Create response (${createRes.status}): ${createText.substring(0, 500)}`);
+    console.log(`[create-evolution-instance] Evolution API response (${createRes.status}): ${createText.substring(0, 500)}`);
 
     let createData: any = {};
-    try { createData = JSON.parse(createText); } catch {}
-
-    if (!createRes.ok && createRes.status !== 200 && createRes.status !== 201) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: `Erro ao criar instância na Evolution API: ${createRes.status}`,
-        details: createText,
-      }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    try { 
+      createData = JSON.parse(createText); 
+      console.log('[create-evolution-instance] ✅ Parsed Evolution response:', JSON.stringify(createData).substring(0, 300));
+    } catch (parseErr) {
+      console.log('[create-evolution-instance] ⚠️ Failed to parse Evolution response:', parseErr);
     }
 
+    if (!createRes.ok && createRes.status !== 200 && createRes.status !== 201) {
+      const errorMsg = `Erro ao criar instância na Evolution API: ${createRes.status}`;
+      console.log('[create-evolution-instance] ❌', errorMsg, createText.substring(0, 200));
+      return jsonResponse({
+        success: false,
+        error: errorMsg,
+        details: createText.substring(0, 300),
+      }, 400);
+    }
+    console.log('[create-evolution-instance] ✅ Instance created successfully on Evolution API');
+
     // 2. Get QR Code
+    console.log('[create-evolution-instance] ✅ Attempting to get QR code...');
     let qrCode: string | null = null;
     qrCode = createData?.qrcode?.base64 || createData?.hash?.qrcode || null;
+    
+    console.log('[create-evolution-instance] QR code from create response:', { has_qr: !!qrCode });
 
     if (!qrCode) {
+      console.log('[create-evolution-instance] ⚠️ No QR code in create response, fetching separately...');
       await new Promise(resolve => setTimeout(resolve, 1500));
       const qrRes = await fetch(`${baseUrl}/instance/connect/${instance_name}`, {
         method: 'GET',
@@ -101,11 +147,17 @@ serve(async (req) => {
         try {
           const qrData = JSON.parse(qrText);
           qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null;
-        } catch {}
+          console.log('[create-evolution-instance] ✅ QR code fetched:', { has_qr: !!qrCode });
+        } catch {
+          console.log('[create-evolution-instance] ⚠️ Failed to parse QR response');
+        }
+      } else {
+        console.log('[create-evolution-instance] ⚠️ QR fetch failed with status:', qrRes.status);
       }
     }
 
     // 3. Save to database
+    console.log('[create-evolution-instance] ✅ Saving instance to database...');
     const { data: instance, error: insertError } = await supabase
       .from('whatsapp_instances')
       .insert({
@@ -121,24 +173,26 @@ serve(async (req) => {
       .single();
 
     if (insertError) {
-      return new Response(JSON.stringify({ success: false, error: insertError.message }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      console.log('[create-evolution-instance] ❌ Insert error:', insertError);
+      return jsonResponse({ success: false, error: `Erro ao salvar instância: ${insertError.message}` }, 500);
     }
+    console.log('[create-evolution-instance] ✅ Instance saved:', { id: instance?.id });
 
     // 4. Save secrets
+    console.log('[create-evolution-instance] ✅ Saving instance secrets...');
     const { error: secretsError } = await supabase
       .from('whatsapp_instance_secrets')
       .insert({ instance_id: instance.id, api_url, api_key });
 
     if (secretsError) {
+      console.log('[create-evolution-instance] ❌ Secrets error:', secretsError);
       await supabase.from('whatsapp_instances').delete().eq('id', instance.id);
-      return new Response(JSON.stringify({ success: false, error: secretsError.message }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ success: false, error: `Erro ao salvar secrets: ${secretsError.message}` }, 500);
     }
+    console.log('[create-evolution-instance] ✅ Secrets saved');
 
     // 5. Auto-configure webhook
+    console.log('[create-evolution-instance] ✅ Configuring webhook...');
     const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook`;
     try {
       await fetch(`${baseUrl}/webhook/set/${instance_name}`, {
@@ -151,20 +205,24 @@ serve(async (req) => {
           },
         }),
       });
+      console.log('[create-evolution-instance] ✅ Webhook configured');
     } catch (webhookErr) {
-      console.warn('[create-evolution-instance] Failed to set webhook (non-fatal):', webhookErr);
+      console.warn('[create-evolution-instance] ⚠️ Failed to set webhook (non-fatal):', webhookErr);
     }
 
-    return new Response(JSON.stringify({
+    console.log('[create-evolution-instance] ✅✅✅ Instance creation completed successfully!');
+    return jsonResponse({
       success: true, instance_id: instance.id, qr_code: qrCode, status: instance.status,
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    }, 200);
 
   } catch (error: unknown) {
     console.error('[create-evolution-instance] ❌ Catch Error:', error);
-    console.error('[create-evolution-instance] Error Details:', JSON.stringify(error));
-    const message = error instanceof Error ? error.message : JSON.stringify(error);
-    return jsonResponse({ success: false, error: `Erro na função: ${message}` }, 500);
+    const errorStr = error instanceof Error ? error.message : JSON.stringify(error);
+    console.error('[create-evolution-instance] Error Details:', errorStr);
+    return jsonResponse({ 
+      success: false, 
+      error: `Erro inesperado na função: ${errorStr}`,
+      timestamp: new Date().toISOString(),
+    }, 500);
   }
 });
