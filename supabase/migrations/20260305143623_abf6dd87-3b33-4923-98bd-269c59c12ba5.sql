@@ -1,0 +1,1 @@
+ALTER TABLE public.followup_sequences ADD COLUMN IF NOT EXISTS on_reply_behavior text NOT NULL DEFAULT 'pause_resume';

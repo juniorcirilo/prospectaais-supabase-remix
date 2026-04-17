@@ -1,0 +1,1 @@
+ALTER TABLE public.dispatch_profiles ADD COLUMN pause_between_batches_max integer NOT NULL DEFAULT 15;

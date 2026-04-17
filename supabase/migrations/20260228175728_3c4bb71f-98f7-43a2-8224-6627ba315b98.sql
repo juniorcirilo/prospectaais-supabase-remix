@@ -1,0 +1,1 @@
+ALTER TABLE public.message_templates ADD COLUMN media_rotation_mode text NOT NULL DEFAULT 'random';

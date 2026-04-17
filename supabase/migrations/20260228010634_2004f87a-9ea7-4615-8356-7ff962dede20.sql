@@ -1,0 +1,1 @@
+ALTER TABLE public.broadcast_campaigns ADD COLUMN delay_between_batches_max integer NOT NULL DEFAULT 300;
