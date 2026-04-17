@@ -25,7 +25,7 @@ export default function Auth() {
     const fetchRegistrationSetting = async () => {
       const { data } = await supabase
         .from('system_settings' as any)
-        .select('registration_enabled')
+        .select('id, registration_enabled')
         .limit(1)
         .maybeSingle();
       if (data) {

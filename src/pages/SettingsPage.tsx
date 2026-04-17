@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Key, Globe, Bell, Shield, Database, Webhook, Save, Loader2, CheckCircle, XCircle, Zap } from "lucide-react";
+import { Settings, Key, Globe, Bell, Shield, Database, Webhook, Save, Loader2, CheckCircle, XCircle, Zap, Brain } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ElevenLabsSettings from "@/components/settings/ElevenLabsSettings";
+import AIProvidersSettings, { AIProvider } from "@/components/settings/AIProvidersSettings";
 import StepApollo from "@/components/onboarding/StepApollo";
 import { useAuth } from "@/hooks/useAuth";
 import { testEvolutionConnection } from "@/lib/testEvolutionConnection";
@@ -22,6 +23,10 @@ export default function SettingsPage() {
   const [testStatus, setTestStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [testMessage, setTestMessage] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // AI Providers state
+  const [aiActiveProvider, setAiActiveProvider] = useState<AIProvider>("groq");
+  const [aiProviders, setAiProviders] = useState<Partial<Record<AIProvider, string>>>({});
 
   // Registration lock
   const [registrationEnabled, setRegistrationEnabled] = useState<boolean>(true);
@@ -50,6 +55,12 @@ export default function SettingsPage() {
           "elevenlabs_stability",
           "elevenlabs_similarity_boost",
           "elevenlabs_speed",
+          "ai_active_provider",
+          "ai_provider_key_groq",
+          "ai_provider_key_gemini",
+          "ai_provider_key_openai",
+          "ai_provider_key_lovable",
+          "ai_provider_key_anthropic",
         ]);
       if (data) {
         for (const row of data) {
@@ -58,6 +69,12 @@ export default function SettingsPage() {
           if (row.key === "evolution_api_key" && row.value) setApiKey(row.value);
           if (row.key === "elevenlabs_api_key" && row.value) setElApiKey(row.value);
           if (row.key === "elevenlabs_voice_id" && row.value) setElVoiceId(row.value);
+          if (row.key === "ai_active_provider" && row.value) setAiActiveProvider(row.value as AIProvider);
+          if (row.key === "ai_provider_key_groq" && row.value) setAiProviders((p) => ({ ...p, groq: row.value }));
+          if (row.key === "ai_provider_key_gemini" && row.value) setAiProviders((p) => ({ ...p, gemini: row.value }));
+          if (row.key === "ai_provider_key_openai" && row.value) setAiProviders((p) => ({ ...p, openai: row.value }));
+          if (row.key === "ai_provider_key_lovable" && row.value) setAiProviders((p) => ({ ...p, lovable: row.value }));
+          if (row.key === "ai_provider_key_anthropic" && row.value) setAiProviders((p) => ({ ...p, anthropic: row.value }));
           if (row.key === "elevenlabs_model" && row.value) setElModel(row.value);
           if (row.key === "elevenlabs_stability" && row.value) setElStability(parseFloat(row.value));
           if (row.key === "elevenlabs_similarity_boost" && row.value) setElSimilarityBoost(parseFloat(row.value));
@@ -91,6 +108,12 @@ export default function SettingsPage() {
         { key: "elevenlabs_stability", value: String(elStability) },
         { key: "elevenlabs_similarity_boost", value: String(elSimilarityBoost) },
         { key: "elevenlabs_speed", value: String(elSpeed) },
+        { key: "ai_active_provider", value: aiActiveProvider },
+        { key: "ai_provider_key_groq", value: aiProviders.groq || "" },
+        { key: "ai_provider_key_gemini", value: aiProviders.gemini || "" },
+        { key: "ai_provider_key_openai", value: aiProviders.openai || "" },
+        { key: "ai_provider_key_lovable", value: aiProviders.lovable || "" },
+        { key: "ai_provider_key_anthropic", value: aiProviders.anthropic || "" },
       ];
       const results = await Promise.all(
         updates.map((u) => supabase.from("app_settings").upsert({ key: u.key, value: u.value, updated_at: now }, { onConflict: "key" }))
@@ -128,7 +151,7 @@ export default function SettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
-          <p className="text-sm text-muted-foreground mt-1">Apollo, Evolution API, ElevenLabs, preferências e integrações</p>
+          <p className="text-sm text-muted-foreground mt-1">Apollo, Evolution API, ElevenLabs, IA & Chat, preferências e integrações</p>
         </div>
         {isAdmin && (
           <Button className="gap-2" onClick={handleSave} disabled={saving}>
@@ -141,6 +164,7 @@ export default function SettingsPage() {
       <Tabs defaultValue={isAdmin ? "apollo" : "general"} className="space-y-4">
         <TabsList>
           {isAdmin && <TabsTrigger value="apollo">Apollo</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="ai">IA & Chat</TabsTrigger>}
           {isAdmin && <TabsTrigger value="api">Evolution API</TabsTrigger>}
           {isAdmin && <TabsTrigger value="elevenlabs">ElevenLabs</TabsTrigger>}
           <TabsTrigger value="general">Geral</TabsTrigger>
@@ -150,6 +174,17 @@ export default function SettingsPage() {
           <>
             <TabsContent value="apollo" className="space-y-4">
               <StepApollo apiKey={apolloApiKey} onApiKeyChange={setApolloApiKey} />
+            </TabsContent>
+
+            <TabsContent value="ai" className="space-y-4">
+              <AIProvidersSettings
+                activeProvider={aiActiveProvider}
+                providers={aiProviders}
+                onProviderChange={setAiActiveProvider}
+                onKeyChange={(provider, key) => setAiProviders((p) => ({ ...p, [provider]: key }))}
+                onSave={handleSave}
+                isSaving={saving}
+              />
             </TabsContent>
 
             <TabsContent value="api" className="space-y-4">
