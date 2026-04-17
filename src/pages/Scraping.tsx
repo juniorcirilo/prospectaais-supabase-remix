@@ -70,13 +70,13 @@ export default function Scraping() {
   const [targetListId, setTargetListId] = useState<string>("");
 
   const { jobs, isLoading: jobsLoading, startJob, deleteJob } = useScrapingJobs();
-  const { searches, stats, isLoading: searchesLoading, deleteSearch, enrichSearch, resumeEnrichment, isSearchStuck, cloneSearch } = useLeadSearches();
+  const { searches, stats, isLoading: searchesLoading, deleteSearch, enrichSearch, resumeEnrichment, isSearchStuck, cloneSearch, createSearch } = useLeadSearches();
   const { lists } = useContacts();
 
   const selectedSearch = selectedSearchId ? searches.find(s => s.id === selectedSearchId) || null : null;
 
   if (view === "chat") {
-    return <div className="animate-fade-in-up"><LeadSearchChat onBack={() => setView("list")} /></div>;
+    return <div className="animate-fade-in-up"><LeadSearchChat onBack={() => setView("list")} createSearch={createSearch} lists={lists} /></div>;
   }
   if (view === "detail" && selectedSearch) {
     return <LeadSearchDetail search={selectedSearch} onBack={() => { setView("list"); setSelectedSearchId(null); }} />;

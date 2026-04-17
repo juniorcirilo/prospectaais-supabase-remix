@@ -7,12 +7,13 @@ import {
   Send, Bot, User, Loader2, Sparkles, CheckCircle2, MessageSquareText, ArrowLeft,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { useLeadSearches } from "@/hooks/useLeadSearches";
-import { useContacts } from "@/hooks/useContacts";
+// createSearch and lists are provided by the parent to avoid duplicate realtime subscriptions
 import { toast } from "sonner";
 
 interface Props {
   onBack: () => void;
+  createSearch: any;
+  lists: any[];
 }
 
 type Msg = { role: "user" | "assistant"; content: string };
@@ -94,9 +95,7 @@ const QUICK_TEMPLATES = [
 const GUIDED_MESSAGE =
   "Quero configurar no modo guiado. Me faça as perguntas uma a uma para montar minha busca de leads do zero.";
 
-export default function LeadSearchChat({ onBack }: Props) {
-  const { createSearch } = useLeadSearches();
-  const { lists } = useContacts();
+export default function LeadSearchChat({ onBack, createSearch, lists }: Props) {
 
   const [messages, setMessages] = useState<Msg[]>([{
     role: "assistant",

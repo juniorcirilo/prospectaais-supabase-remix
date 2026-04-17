@@ -44,7 +44,7 @@ export function useLeadSearches() {
   // Realtime — invalidate on any change to lead_searches
   useEffect(() => {
     const channel = supabase
-      .channel("lead-searches-realtime")
+      .channel(`lead-searches-realtime-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "lead_searches" }, () => {
         queryClient.invalidateQueries({ queryKey: ["lead-searches"] });
       })
@@ -55,7 +55,7 @@ export function useLeadSearches() {
   // Also subscribe to lead_companies changes for enrichment detail updates
   useEffect(() => {
     const channel = supabase
-      .channel("lead-companies-realtime")
+      .channel(`lead-companies-realtime-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "lead_companies" }, () => {
         queryClient.invalidateQueries({ queryKey: ["lead-searches"] });
       })
