@@ -62,22 +62,27 @@ async function requireAuth(
 }
 
 serve(async (req) => {
-  console.log(`[create-evolution-instance] Received ${req.method} request`);
+  try {
+    console.log(`[create-evolution-instance] ⭐ START: Received ${req.method} request`);
 
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+    if (req.method === 'OPTIONS') {
+      console.log('[create-evolution-instance] ✅ OPTIONS request');
+      return new Response(null, { headers: corsHeaders });
+    }
 
-  const auth = await requireAuth(req, { requireAdmin: false });
-  console.log('[create-evolution-instance] Auth result:', auth instanceof Response ? { isResponse: true, status: (auth as any).status } : { isResponse: false, userId: (auth as any).userId, isAdmin: (auth as any).isAdmin });
-  if (auth instanceof Response) {
-    console.log('[create-evolution-instance] ❌ Auth failed, returning response');
-    return auth;
-  }
+    console.log('[create-evolution-instance] ✅ Checking auth...');
+    const auth = await requireAuth(req, { requireAdmin: false });
+    console.log('[create-evolution-instance] ✅ Auth check done:', auth instanceof Response ? 'FAILED' : 'SUCCESS');
+    if (auth instanceof Response) {
+      console.log('[create-evolution-instance] ❌ Auth failed, returning');
+      return auth;
+    }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    console.log('[create-evolution-instance] ✅ Creating Supabase client...');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    console.log('[create-evolution-instance] ✅ Supabase client created');
 
   try {
     const bodyData = await req.json().catch(() => ({}));
@@ -268,12 +273,17 @@ serve(async (req) => {
     }, 200);
 
   } catch (error: unknown) {
-    console.error('[create-evolution-instance] ❌ Catch Error:', error);
+    console.error('[create-evolution-instance] ❌❌❌ CATCH ERROR');
+    console.error('Error type:', typeof error);
+    console.error('Error:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     const errorStr = error instanceof Error ? error.message : JSON.stringify(error);
-    console.error('[create-evolution-instance] Error Details:', errorStr);
     return jsonResponse({ 
       success: false, 
-      error: `Erro inesperado na função: ${errorStr}`,
+      error: `Erro inesperado: ${errorStr}`,
       timestamp: new Date().toISOString(),
     }, 500);
   }
