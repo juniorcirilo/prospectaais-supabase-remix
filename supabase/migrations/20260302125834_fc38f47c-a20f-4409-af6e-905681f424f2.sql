@@ -1,0 +1,1 @@
+ALTER TABLE public.broadcast_recipients ADD COLUMN sent_media_url text;

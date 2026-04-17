@@ -1,0 +1,1 @@
+UPDATE flow_executions SET status = 'failed', completed_at = NOW() WHERE id = '19820f4f-0bac-4cbd-ab1a-21061d9c7451' AND status = 'in_progress';

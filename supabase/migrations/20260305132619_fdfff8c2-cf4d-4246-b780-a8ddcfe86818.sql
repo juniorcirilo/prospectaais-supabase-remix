@@ -1,0 +1,1 @@
+ALTER TABLE public.followup_sequences ADD COLUMN flow_id uuid REFERENCES public.flows(id) ON DELETE SET NULL DEFAULT NULL;
