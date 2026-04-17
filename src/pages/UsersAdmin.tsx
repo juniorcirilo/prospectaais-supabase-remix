@@ -41,7 +41,9 @@ function useUsersWithRoles() {
 
       if (rErr) throw rErr;
 
-      const roleMap = new Map(roles?.map((r) => [r.user_id, { role: r.role, role_id: r.id }]));
+      const roleMap = new Map<string, { role: string; role_id: string }>(
+        (roles || []).map((r) => [r.user_id, { role: r.role as string, role_id: r.id }])
+      );
 
       return (profiles || []).map((p) => {
         const r = roleMap.get(p.id);

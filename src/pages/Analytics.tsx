@@ -148,7 +148,9 @@ function useRecentMessages() {
         .select("id, name, phone")
         .in("id", contactIds);
 
-      const contactMap = new Map(contacts?.map((c) => [c.id, c]) || []);
+      const contactMap = new Map<string, { id: string; name: string | null; phone: string | null }>(
+        (contacts || []).map((c) => [c.id, c])
+      );
 
       return data.map((m) => ({
         id: m.id,
