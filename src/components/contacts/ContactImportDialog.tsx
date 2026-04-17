@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Switch } from "@/components/ui/switch";
 import CsvUploader from "@/components/broadcasts/CsvUploader";
 import { useContacts } from "@/hooks/useContacts";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 const CONTACT_FIELDS = [
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export default function ContactImportDialog({ open, onOpenChange, lists, activeListId }: Props) {
+  const { session } = useAuth();
   const { importContacts } = useContacts();
 
   const [headers, setHeaders] = useState<string[]>([]);
@@ -78,6 +80,11 @@ export default function ContactImportDialog({ open, onOpenChange, lists, activeL
   };
 
   const handleAiAutoMap = async () => {
+    if (!session?.access_token) {
+      toast.error("Sessão expirada. Faça login novamente.");
+      return;
+    }
+
     setAiMapping(true);
     try {
       // Sample data for AI context
@@ -98,7 +105,7 @@ Responda APENAS com um JSON no formato: {"mapping": {"campo_contato": "coluna_cs
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ headers, sampleRows }),
       });

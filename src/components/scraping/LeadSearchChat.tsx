@@ -9,6 +9,7 @@ import {
 import ReactMarkdown from "react-markdown";
 // createSearch and lists are provided by the parent to avoid duplicate realtime subscriptions
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
   onBack: () => void;
@@ -96,6 +97,7 @@ const GUIDED_MESSAGE =
   "Quero configurar no modo guiado. Me faça as perguntas uma a uma para montar minha busca de leads do zero.";
 
 export default function LeadSearchChat({ onBack, createSearch, lists }: Props) {
+  const { session } = useAuth();
 
   const [messages, setMessages] = useState<Msg[]>([{
     role: "assistant",
@@ -131,6 +133,11 @@ export default function LeadSearchChat({ onBack, createSearch, lists }: Props) {
   };
 
   const processStream = async (allMessages: Msg[]) => {
+    if (!session?.access_token) {
+      toast.error("Sessão expirada. Faça login novamente.");
+      return;
+    }
+
     setIsLoading(true);
     let assistantContent = "";
     let toolCallArgs = "";
@@ -141,7 +148,7 @@ export default function LeadSearchChat({ onBack, createSearch, lists }: Props) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${session.access_token}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
         body: JSON.stringify({
