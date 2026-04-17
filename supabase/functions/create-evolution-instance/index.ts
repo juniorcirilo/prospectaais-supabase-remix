@@ -68,7 +68,7 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const auth = await requireAuth(req, { requireAdmin: true });
+  const auth = await requireAuth(req, { requireAdmin: false });
   console.log('[create-evolution-instance] Auth result:', auth instanceof Response ? { isResponse: true, status: (auth as any).status } : { isResponse: false, userId: (auth as any).userId, isAdmin: (auth as any).isAdmin });
   if (auth instanceof Response) {
     console.log('[create-evolution-instance] ❌ Auth failed, returning response');
@@ -93,7 +93,6 @@ serve(async (req) => {
       name_len: name?.length,
     });
 
-    // Detailed validation
     const isInstanceNameString = typeof instance_name === 'string';
     const isNameString = typeof name === 'string';
     const isInstanceNameEmpty = instance_name?.length === 0;
@@ -117,7 +116,6 @@ serve(async (req) => {
     }
     console.log('[create-evolution-instance] ✅ Validation passed');
 
-    // Read Evolution API credentials from app_settings
     console.log('[create-evolution-instance] ✅ Reading app_settings...');
     const { data: settings, error: settingsErr } = await supabase
       .from('app_settings')
@@ -152,7 +150,6 @@ serve(async (req) => {
 
     const baseUrl = api_url.replace(/\/$/, '');
 
-    // 1. Create instance on Evolution API
     console.log(`[create-evolution-instance] ✅ Creating instance: ${instance_name} at ${baseUrl}`);
     const createRes = await fetch(`${baseUrl}/instance/create`, {
       method: 'POST',
@@ -187,7 +184,6 @@ serve(async (req) => {
     }
     console.log('[create-evolution-instance] ✅ Instance created successfully on Evolution API');
 
-    // 2. Get QR Code
     console.log('[create-evolution-instance] ✅ Attempting to get QR code...');
     let qrCode: string | null = null;
     qrCode = createData?.qrcode?.base64 || createData?.hash?.qrcode || null;
@@ -215,7 +211,6 @@ serve(async (req) => {
       }
     }
 
-    // 3. Save to database
     console.log('[create-evolution-instance] ✅ Saving instance to database...');
     const { data: instance, error: insertError } = await supabase
       .from('whatsapp_instances')
@@ -237,7 +232,6 @@ serve(async (req) => {
     }
     console.log('[create-evolution-instance] ✅ Instance saved:', { id: instance?.id });
 
-    // 4. Save secrets
     console.log('[create-evolution-instance] ✅ Saving instance secrets...');
     const { error: secretsError } = await supabase
       .from('whatsapp_instance_secrets')
@@ -250,7 +244,6 @@ serve(async (req) => {
     }
     console.log('[create-evolution-instance] ✅ Secrets saved');
 
-    // 5. Auto-configure webhook
     console.log('[create-evolution-instance] ✅ Configuring webhook...');
     const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook`;
     try {
