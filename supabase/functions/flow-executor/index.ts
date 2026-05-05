@@ -326,9 +326,7 @@ Deno.serve(async (req) => {
         let userMessage = variables.last_message || "";
 
         try {
-          const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-          if (!lovableApiKey) throw new Error("LOVABLE_API_KEY not configured");
-
+          // Use shared AI helper so this node works with Groq/OpenAI/Gemini/Lovable/Anthropic
           const modelMap: Record<string, string> = {
             "gemini-2.5-flash": "google/gemini-2.5-flash",
             "gemini-2.5-pro": "google/gemini-2.5-pro",
@@ -336,36 +334,25 @@ Deno.serve(async (req) => {
             "gpt-5": "openai/gpt-5",
           };
 
-          const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${lovableApiKey}`,
-            },
-            body: JSON.stringify({
-              model: modelMap[model] || "google/gemini-2.5-flash",
-              messages: [
-                { role: "system", content: replaceVariables(systemPrompt, variables) },
-                { role: "user", content: userMessage },
-              ],
-              max_tokens: 1000,
-            }),
+          const { callAIUnified } = await import("../_shared/ai-providers.ts");
+          const aiResult = await callAIUnified({
+            systemPrompt: replaceVariables(systemPrompt, variables),
+            messages: [
+              { role: "system", content: replaceVariables(systemPrompt, variables) },
+              { role: "user", content: userMessage },
+            ],
+            stream: false,
+            modelOverride: modelMap[model] || undefined,
           });
 
-          const aiText = await aiResponse.text();
-          console.log(`[flow-executor] AI response status: ${aiResponse.status}, body: ${aiText.substring(0, 300)}`);
-          
+          console.log(`[flow-executor] AI response status: ${aiResult.status}`);
+
           let aiContent = "";
-          if (!aiResponse.ok) {
-            console.error(`[flow-executor] AI API error: ${aiResponse.status} - ${aiText}`);
+          if (!aiResult.ok) {
+            console.error(`[flow-executor] AI API error: ${aiResult.status} - ${JSON.stringify(aiResult.raw)}`);
             aiContent = fallback || "Desculpe, ocorreu um erro ao processar.";
           } else {
-            try {
-              const aiJson = JSON.parse(aiText);
-              aiContent = aiJson.choices?.[0]?.message?.content || aiJson.content || fallback;
-            } catch {
-              aiContent = fallback || "Desculpe, não consegui processar sua mensagem.";
-            }
+            aiContent = aiResult.text || fallback || "Desculpe, não consegui processar sua mensagem.";
           }
 
           variables.ai_response = aiContent;

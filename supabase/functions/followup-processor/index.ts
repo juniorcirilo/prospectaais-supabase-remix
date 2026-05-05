@@ -322,9 +322,6 @@ Deno.serve(async (req) => {
         // ── AI PROMPT: generate message via Lovable AI Gateway ──
         if (currentStep.content_type === "ai_prompt") {
           try {
-            const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-            if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
             // Fetch last 10 conversation messages for context
             const { data: convHistory } = await supabase
               .from("conversation_messages")
@@ -365,28 +362,21 @@ ${messageContent}`;
 
             console.log(`[followup-processor] AI prompt for enrollment ${enrollment.id}: calling gateway with ${historyMessages.length} history messages`);
 
-            const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${LOVABLE_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                model: "google/gemini-3-flash-preview",
-                messages: aiMessages,
-                stream: false,
-              }),
+            // Call unified AI helper (supports Groq/OpenAI/Gemini/Lovable/Anthropic)
+            const { callAIUnified } = await import("../_shared/ai-providers.ts");
+            const aiResult = await callAIUnified({
+              systemPrompt: wrappedSystemPrompt,
+              messages: aiMessages,
+              stream: false,
             });
 
-            if (!aiResponse.ok) {
-              const errText = await aiResponse.text();
-              throw new Error(`AI gateway error ${aiResponse.status}: ${errText}`);
+            if (!aiResult.ok) {
+              throw new Error(`AI gateway error ${aiResult.status}: ${JSON.stringify(aiResult.raw)}`);
             }
 
-            const aiData = await aiResponse.json();
-            messageContent = aiData.choices?.[0]?.message?.content || "";
+            messageContent = (aiResult.text || "").trim();
 
-            if (!messageContent.trim()) {
+            if (!messageContent) {
               throw new Error("AI returned empty content");
             }
 

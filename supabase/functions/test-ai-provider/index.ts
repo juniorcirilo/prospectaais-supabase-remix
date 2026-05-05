@@ -1,16 +1,21 @@
 import { corsHeaders } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
+  // Compute dynamic CORS headers (echo Origin when present)
+  const origin = req.headers.get("origin") || "*";
+  const dynamicCors = {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Access-Control-Max-Age": "86400",
+  } as Record<string, string>;
+
   // Handle CORS preflight first, before any auth checks
   if (req.method === "OPTIONS") {
+    console.log(`[test-ai-provider] Preflight from origin=${origin}`);
     return new Response(null, {
       status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-        "Access-Control-Max-Age": "86400",
-      },
+      headers: dynamicCors,
     });
   }
 
@@ -19,7 +24,7 @@ Deno.serve(async (req) => {
   if (!authHeader?.startsWith("Bearer ")) {
     return new Response(JSON.stringify({ success: false, error: "Não autenticado" }), {
       status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...dynamicCors, "Content-Type": "application/json" },
     });
   }
 

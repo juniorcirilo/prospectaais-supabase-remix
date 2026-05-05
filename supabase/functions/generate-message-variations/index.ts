@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, requireAuth } from "../_shared/auth.ts";
+import { callAIUnified } from "../_shared/ai-providers.ts";
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
@@ -13,8 +14,7 @@ serve(async (req) => {
     if (base_text && (typeof base_text !== 'string' || base_text.length > 5000)) throw new Error('base_text inválido');
     if (typeof count !== 'number' || count < 1 || count > 50) throw new Error('count fora do intervalo (1-50)');
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
+    // Use unified AI caller (supports Groq/OpenAI/Gemini/Lovable/Anthropic)
 
     const isFragment = mode === 'fragment';
     const isRewrite = mode === 'rewrite';
@@ -145,39 +145,31 @@ ${instruction ? `Instrução adicional: ${instruction}\n` : ''}
 Gere ${Math.min(count, 20)} variações únicas desta mensagem.`;
     }
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-      }),
+    const aiResult = await callAIUnified({
+      systemPrompt,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      stream: false,
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
+    if (!aiResult.ok) {
+      if (aiResult.status === 429) {
         return new Response(JSON.stringify({ error: 'Limite de requisições excedido. Tente novamente em alguns segundos.' }), {
           status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      if (response.status === 402) {
+      if (aiResult.status === 402) {
         return new Response(JSON.stringify({ error: 'Créditos insuficientes. Adicione créditos ao workspace.' }), {
           status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const t = await response.text();
-      console.error('AI error:', response.status, t);
+      console.error('AI error:', aiResult.status, aiResult.raw);
       throw new Error('Erro ao gerar variações');
     }
 
-    const data = await response.json();
-    const rawContent = data.choices?.[0]?.message?.content || '';
+    const rawContent = aiResult.text || '';
 
     if (isRewrite || isInline || mode === 'generate_copy' || mode === 'enhance_copy') {
       const rewritten = rawContent.replace(/^["']|["']$/g, '').trim();

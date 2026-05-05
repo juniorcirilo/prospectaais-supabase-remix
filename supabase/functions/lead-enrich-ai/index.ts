@@ -17,7 +17,6 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY");
   const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -654,7 +653,16 @@ Deno.serve(async (req) => {
     // STEP: ai_summaries
     // ═══════════════════════════════════════════════════════════
     else if (currentStep === "ai_summaries") {
-      if (lovableKey) {
+      // Only run if a supported AI provider is configured
+      let canUseAI = true;
+      try {
+        const { detectAIProvider } = await import("../_shared/ai-providers.ts");
+        detectAIProvider();
+      } catch (e) {
+        canUseAI = false;
+      }
+
+      if (canUseAI) {
         const AI_BATCH = 10;
         const start = cursor;
         const end = Math.min(start + AI_BATCH, contacts.length);
@@ -667,7 +675,7 @@ Deno.serve(async (req) => {
         const batch = contacts.slice(start, end);
         try {
           const summaries = await fetchWithTimeout(
-            () => generateAISummaries(lovableKey, batch, search.config),
+            () => generateAISummaries(batch, search.config),
             FETCH_TIMEOUT_MS * 2 // AI can take longer
           );
           for (let j = 0; j < batch.length; j++) {
@@ -1441,7 +1449,7 @@ async function discoverCompanyDataViaFirecrawl(apiKey: string, contact: any, sea
 // AI SUMMARY
 // ═══════════════════════════════════════════════════════════
 
-async function generateAISummaries(apiKey: string, contacts: any[], searchConfig: any): Promise<any[]> {
+async function generateAISummaries(contacts: any[], searchConfig: any): Promise<any[]> {
   const industry = searchConfig?.company?.industries?.join(", ") || searchConfig?.query || "setor não especificado";
   const contactDescriptions = contacts.map((c: any, i: number) => {
     const parts = [`Lead ${i + 1}:`];
@@ -1460,51 +1468,49 @@ async function generateAISummaries(apiKey: string, contacts: any[], searchConfig
     return parts.join(" | ");
   }).join("\n\n");
 
-  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        { role: "system", content: "Você é um analista de leads B2B. Para cada lead, gere resumo executivo conciso. Responda APENAS com JSON válido." },
-        { role: "user", content: `Analise ${contacts.length} leads do setor "${industry}". Para cada:\n- summary: resumo 2-3 frases\n- tags: array 2-4 tags\n- relevance_score: 0-100\n- insights: 1 insight acionável\n\n${contactDescriptions}\n\nResponda com array JSON de ${contacts.length} objetos na mesma ordem.` },
-      ],
-      tools: [{
-        type: "function",
-        function: {
-          name: "return_lead_summaries",
-          description: "Return AI-generated summaries for each lead",
-          parameters: {
-            type: "object",
-            properties: {
-              summaries: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    summary: { type: "string" }, tags: { type: "array", items: { type: "string" } },
-                    relevance_score: { type: "number" }, insights: { type: "string" },
-                  },
-                  required: ["summary", "tags", "relevance_score", "insights"],
-                },
+  const aiPayloadMessages = [
+    { role: "system", content: "Você é um analista de leads B2B. Para cada lead, gere resumo executivo conciso. Responda APENAS com JSON válido." },
+    { role: "user", content: `Analise ${contacts.length} leads do setor "${industry}". Para cada:\n- summary: resumo 2-3 frases\n- tags: array 2-4 tags\n- relevance_score: 0-100\n- insights: 1 insight acionável\n\n${contactDescriptions}\n\nResponda com array JSON de ${contacts.length} objetos na mesma ordem.` },
+  ];
+
+  const toolDeclaration = [{
+    type: "function",
+    function: {
+      name: "return_lead_summaries",
+      description: "Return AI-generated summaries for each lead",
+      parameters: {
+        type: "object",
+        properties: {
+          summaries: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                summary: { type: "string" }, tags: { type: "array", items: { type: "string" } },
+                relevance_score: { type: "number" }, insights: { type: "string" },
               },
+              required: ["summary", "tags", "relevance_score", "insights"],
             },
-            required: ["summaries"],
           },
         },
-      }],
-      tool_choice: { type: "function", function: { name: "return_lead_summaries" } },
-    }),
-  });
+        required: ["summaries"],
+      },
+    },
+  }];
 
-  if (!resp.ok) { const t = await resp.text(); console.error("[lead-enrich] AI error:", resp.status, t); throw new Error(`AI error ${resp.status}`); }
-  const data = await resp.json();
+  // Call unified AI helper
+  const { callAIUnified } = await import("../_shared/ai-providers.ts");
+  const aiResult = await callAIUnified({ systemPrompt: "", messages: aiPayloadMessages, stream: false, modelOverride: "google/gemini-2.5-flash" });
+
+  if (!aiResult.ok) { console.error("[lead-enrich] AI error:", aiResult.status, aiResult.raw); throw new Error(`AI error ${aiResult.status}`); }
+
+  const data = aiResult.raw;
   const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
   if (toolCall?.function?.arguments) {
-    const parsed = JSON.parse(toolCall.function.arguments);
-    return parsed.summaries || [];
+    try { const parsed = JSON.parse(toolCall.function.arguments); return parsed.summaries || []; } catch { /* fallback below */ }
   }
-  const content = data.choices?.[0]?.message?.content || "";
+
+  const content = data.choices?.[0]?.message?.content || aiResult.text || "";
   try { const parsed = JSON.parse(content); return Array.isArray(parsed) ? parsed : parsed.summaries || []; }
   catch { console.error("[lead-enrich] Failed to parse AI response"); return []; }
 }

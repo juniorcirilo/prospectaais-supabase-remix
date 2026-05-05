@@ -206,7 +206,20 @@ Deno.serve(async (req) => {
     console.log("[lead-search-ai-chat] Received", messages?.length, "messages");
 
     // Detecta qual provedor de IA usar
-    const aiConfig = detectAIProvider();
+    let aiConfig;
+    try {
+      aiConfig = detectAIProvider();
+    } catch (err) {
+      console.error(`[lead-search-ai-chat] AI provider configuration error:`, err);
+      const msg = err instanceof Error ? err.message : "Nenhuma chave de IA configurada";
+      return new Response(JSON.stringify({
+        error: msg,
+        hint: "Configure uma chave de IA nas Secrets do Supabase (Settings → Secrets) ou no .env.local para desenvolvimento.",
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     console.log(`[lead-search-ai-chat] Usando provider: ${aiConfig.provider}`);
 
     let systemPrompt = SYSTEM_PROMPT;

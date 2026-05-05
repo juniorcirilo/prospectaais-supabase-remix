@@ -62,6 +62,49 @@ export async function callAIProvider(
   }
 }
 
+/**
+ * Chama o provider detectado e retorna um objeto unificado com o texto extraído.
+ * Útil para funções que esperam uma resposta textual pronta (não streaming).
+ */
+export async function callAIUnified(
+  options: AIProviderOptions & { modelOverride?: string },
+): Promise<{ ok: boolean; status: number; text: string; raw: any }>
+{
+  const cfg = detectAIProvider();
+  if (options.modelOverride) cfg.model = options.modelOverride;
+
+  const resp = await callAIProvider(cfg, { ...options, stream: false });
+  const status = resp.status;
+  try {
+    const json = await resp.json();
+    // Normalizar vários formatos de resposta de providers distintos
+    let text = "";
+    if (json.choices && Array.isArray(json.choices) && json.choices[0]) {
+      const choice = json.choices[0];
+      text = choice.message?.content ?? choice.delta?.content ?? choice.text ?? "";
+      if (!text && choice.output && Array.isArray(choice.output)) {
+        // Groq / other shapes
+        const out = choice.output[0];
+        text = out?.content?.map((c: any) => c.text).join("") || "";
+      }
+    } else if (json.output_text) {
+      text = json.output_text;
+    } else if (json.completion) {
+      text = json.completion;
+    } else if (typeof json === "string") {
+      text = json;
+    } else {
+      // Fallback: stringify full response
+      text = JSON.stringify(json);
+    }
+
+    return { ok: resp.ok, status, text, raw: json };
+  } catch (err) {
+    const txt = await resp.text();
+    return { ok: resp.ok, status, text: txt, raw: txt };
+  }
+}
+
 // ─── LOVABLE ───
 async function callLovable(apiKey: string, options: AIProviderOptions): Promise<Response> {
   return fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
