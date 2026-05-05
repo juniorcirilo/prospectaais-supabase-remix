@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, jsonResponse, requireAuth } from "../_shared/auth.ts";
-import { detectAIProvider, callAIProvider } from "../_shared/ai-providers.ts";
+import { detectAIProviderWithDB, callAIProvider } from "../_shared/ai-providers.ts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -52,7 +52,7 @@ serve(async (req) => {
     }).join("\n\n---\n\n");
 
     // Use multi-provider AI instead of hardcoded Lovable
-    const aiConfig = detectAIProvider();
+    const aiConfig = await detectAIProviderWithDB();
     console.log(`[campaign-ai-analysis] Using provider: ${aiConfig.provider}`);
 
     const systemPrompt = `Você é um analista especialista em campanhas de disparo WhatsApp.
@@ -90,60 +90,64 @@ Seja direto, técnico e acionável no conteúdo.`;
           name: "campaign_analysis",
           description: "Retorna a análise estruturada das campanhas com seções e gráficos",
           parameters: {
-                type: "object",
-                properties: {
-                  sections: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        title: { type: "string", description: "Título da seção (ex: Resumo Executivo, Análise das Mensagens)" },
-                        icon: { type: "string", enum: ["summary", "message", "performance", "engine", "insights"], description: "Ícone da seção" },
-                        content: { type: "string", description: "Conteúdo em Markdown com **negrito**, *itálico*, `código` para variáveis, listas com -, > para destaques" },
-                      },
-                      required: ["title", "icon", "content"],
-                      additionalProperties: false,
-                    },
+            type: "object",
+            properties: {
+              sections: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    title: { type: "string", description: "Título da seção (ex: Resumo Executivo, Análise das Mensagens)" },
+                    icon: { type: "string", enum: ["summary", "message", "performance", "engine", "insights"], description: "Ícone da seção" },
+                    content: { type: "string", description: "Conteúdo em Markdown com **negrito**, *itálico*, `código` para variáveis, listas com -, > para destaques" },
                   },
-                  charts: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        title: { type: "string" },
-                        type: { type: "string", enum: ["bar", "horizontal_bar", "score"] },
-                        data: {
-                          type: "array",
-                          items: {
-                            type: "object",
-                            properties: {
-                              label: { type: "string" },
-                              value: { type: "number" },
-                              max: { type: "number", description: "Valor máximo para score (default 10)" },
-                              color: { type: "string", enum: ["primary", "success", "warning", "destructive", "info", "accent"], description: "Cor da barra" },
-                            },
-                            required: ["label", "value"],
-                            additionalProperties: false,
-                          },
-                        },
-                      },
-                      required: ["title", "type", "data"],
-                      additionalProperties: false,
-                    },
-                  },
-                  verdict: {
-                    type: "string",
-                    description: "Veredicto final em uma frase curta e impactante",
-                  },
+                  required: ["title", "icon", "content"],
+                  additionalProperties: false,
                 },
-                required: ["sections", "charts", "verdict"],
-                additionalProperties: false,
+              },
+              charts: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    title: { type: "string" },
+                    type: { type: "string", enum: ["bar", "horizontal_bar", "score"] },
+                    data: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          label: { type: "string" },
+                          value: { type: "number" },
+                          max: { type: "number", description: "Valor máximo para score (default 10)" },
+                          color: { type: "string", enum: ["primary", "success", "warning", "destructive", "info", "accent"], description: "Cor da barra" },
+                        },
+                        required: ["label", "value"],
+                        additionalProperties: false,
+                      },
+                    },
+                  },
+                  required: ["title", "type", "data"],
+                  additionalProperties: false,
+                },
+              },
+              verdict: {
+                type: "string",
+                description: "Veredicto final em uma frase curta e impactante",
               },
             },
+            required: ["sections", "charts", "verdict"],
+            additionalProperties: false,
           },
-        ],
-        tool_choice: { type: "function", function: { name: "campaign_analysis" } },
-      }),
+        },
+      },
+    ];
+
+    const aiResponse = await callAIProvider(aiConfig, {
+      systemPrompt,
+      messages: messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+      tools,
+      stream: false,
     });
 
     if (!aiResponse.ok) {

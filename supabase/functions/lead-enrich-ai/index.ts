@@ -656,8 +656,8 @@ Deno.serve(async (req) => {
       // Only run if a supported AI provider is configured
       let canUseAI = true;
       try {
-        const { detectAIProvider } = await import("../_shared/ai-providers.ts");
-        detectAIProvider();
+        const { detectAIProviderWithDB } = await import("../_shared/ai-providers.ts");
+        await detectAIProviderWithDB();
       } catch (e) {
         canUseAI = false;
       }

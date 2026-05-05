@@ -1,5 +1,5 @@
 import { corsHeaders, requireAuth } from "../_shared/auth.ts";
-import { detectAIProvider, callAIProvider } from "../_shared/ai-providers.ts";
+import { detectAIProviderWithDB, callAIProvider } from "../_shared/ai-providers.ts";
 
 const SYSTEM_PROMPT = `Você é um assistente conversacional que ajuda a configurar buscas de leads para prospecção B2B.
 
@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
     // Detecta qual provedor de IA usar
     let aiConfig;
     try {
-      aiConfig = detectAIProvider();
+      aiConfig = await detectAIProviderWithDB();
     } catch (err) {
       console.error(`[lead-search-ai-chat] AI provider configuration error:`, err);
       const msg = err instanceof Error ? err.message : "Nenhuma chave de IA configurada";

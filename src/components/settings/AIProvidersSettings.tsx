@@ -19,6 +19,46 @@ interface AIProviderConfig {
   costNote: string;
 }
 
+interface ModelOption {
+  value: string;
+  label: string;
+  description?: string;
+}
+
+const PROVIDER_MODEL_OPTIONS: Record<AIProvider, ModelOption[]> = {
+  groq: [
+    { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B Versatile", description: "Recomendado — rápido e capaz" },
+    { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant", description: "Ultra rápido, menos preciso" },
+    { value: "gemma2-9b-it", label: "Gemma 2 9B", description: "Google, leve e eficiente" },
+    { value: "deepseek-r1-distill-llama-70b", label: "DeepSeek R1 70B", description: "Melhor reasoning" },
+    { value: "llama-3.2-90b-vision-preview", label: "Llama 3.2 90B Vision", description: "Suporte a visão" },
+  ],
+  gemini: [
+    { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", description: "Recomendado — rápido e gratuito" },
+    { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", description: "Melhor qualidade" },
+    { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash", description: "Estável e rápido" },
+    { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro", description: "Contexto longo (2M tokens)" },
+    { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash", description: "Leve e econômico" },
+  ],
+  openai: [
+    { value: "gpt-4o-mini", label: "GPT-4o Mini", description: "Recomendado — barato e rápido" },
+    { value: "gpt-4o", label: "GPT-4o", description: "Melhor qualidade" },
+    { value: "gpt-4-turbo", label: "GPT-4 Turbo", description: "Versão anterior" },
+    { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo", description: "Mais barato" },
+    { value: "o1-mini", label: "o1 Mini", description: "Reasoning avançado" },
+  ],
+  anthropic: [
+    { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet", description: "Recomendado — melhor reasoning" },
+    { value: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku", description: "Rápido e econômico" },
+    { value: "claude-3-opus-20240229", label: "Claude 3 Opus", description: "Máxima qualidade" },
+  ],
+  lovable: [
+    { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", description: "Recomendado" },
+    { value: "openai/gpt-4o", label: "GPT-4o", description: "OpenAI via gateway" },
+    { value: "anthropic/claude-3-5-sonnet", label: "Claude 3.5 Sonnet", description: "Anthropic via gateway" },
+  ],
+};
+
 const PROVIDERS: Record<AIProvider, AIProviderConfig> = {
   groq: {
     name: "Groq",
@@ -59,8 +99,10 @@ const PROVIDERS: Record<AIProvider, AIProviderConfig> = {
 
 interface Props {
   activeProvider: AIProvider;
+  activeModel: string;
   providers: Partial<Record<AIProvider, string>>;
   onProviderChange: (provider: AIProvider) => void;
+  onModelChange: (model: string) => void;
   onKeyChange: (provider: AIProvider, key: string) => void;
   onSave: () => Promise<void>;
   isSaving: boolean;
@@ -68,8 +110,10 @@ interface Props {
 
 export default function AIProvidersSettings({
   activeProvider,
+  activeModel,
   providers,
   onProviderChange,
+  onModelChange,
   onKeyChange,
   onSave,
   isSaving,
@@ -188,21 +232,44 @@ export default function AIProvidersSettings({
           <CardDescription>Selecione o provedor de IA que deseja usar</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Select value={activeProvider} onValueChange={(val) => onProviderChange(val as AIProvider)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(PROVIDERS).map(([key, provider]) => (
-                <SelectItem key={key} value={key}>
-                  <div className="flex items-center gap-2">
-                    {provider.name}
-                    {providers[key as AIProvider] && <Badge variant="outline" className="ml-2">Configurado</Badge>}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div>
+            <p className="text-sm font-medium text-foreground mb-1.5">Provider</p>
+            <Select value={activeProvider} onValueChange={(val) => {
+              onProviderChange(val as AIProvider);
+              const defaultModel = PROVIDER_MODEL_OPTIONS[val as AIProvider]?.[0]?.value;
+              if (defaultModel) onModelChange(defaultModel);
+            }}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(PROVIDERS).map(([key, provider]) => (
+                  <SelectItem key={key} value={key}>
+                    {provider.name}{providers[key as AIProvider] ? " ✓" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-foreground mb-1.5">Modelo</p>
+            <Select
+              value={activeModel || PROVIDER_MODEL_OPTIONS[activeProvider]?.[0]?.value}
+              onValueChange={onModelChange}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o modelo" />
+              </SelectTrigger>
+              <SelectContent>
+                {PROVIDER_MODEL_OPTIONS[activeProvider]?.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.label}{m.description ? ` — ${m.description}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <Alert>
             <Zap className="h-4 w-4" />

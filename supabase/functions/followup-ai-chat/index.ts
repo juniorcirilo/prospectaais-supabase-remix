@@ -1,5 +1,5 @@
 import { corsHeaders, requireAuth } from "../_shared/auth.ts";
-import { detectAIProvider, callAIProvider } from "../_shared/ai-providers.ts";
+import { detectAIProviderWithDB, callAIProvider } from "../_shared/ai-providers.ts";
 
 const SYSTEM_PROMPT_BASE = `Você é um assistente conversacional e amigável que ajuda a configurar sequências de follow-up para WhatsApp marketing.
 
@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
     console.log("[followup-ai-chat] Received request with", messages?.length, "messages", editingSequence ? `(editing: ${editingSequence.name})` : "(new)");
     
     // Detecta qual provedor de IA usar
-    const aiConfig = detectAIProvider();
+    const aiConfig = await detectAIProviderWithDB();
     console.log(`[followup-ai-chat] Usando provider: ${aiConfig.provider}`);
 
     // Build dynamic system prompt with available flows and campaigns

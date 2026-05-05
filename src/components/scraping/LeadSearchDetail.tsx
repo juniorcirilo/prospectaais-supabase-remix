@@ -1,3 +1,4 @@
+import React from "react";
 import { ArrowLeft, RefreshCw, Download, CheckCircle2, AlertCircle, Clock, Sparkles, ExternalLink, Star, ListPlus, Building2, Users, ChevronDown, ChevronRight, Globe, Phone, Mail, MapPin, Briefcase, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -173,9 +174,8 @@ function CompanyAccordion({ group, hasEnrichedResults }: { group: CompanyGroup; 
             </TableHeader>
             <TableBody>
               {group.contacts.map((c: any, i: number) => (
-                <>
+                <React.Fragment key={`contact-row-${i}`}>
                   <TableRow
-                    key={`contact-${i}`}
                     className={`cursor-pointer hover:bg-muted/50 ${expandedContact === i ? "bg-muted/30" : ""} ${c._source === "expansion" ? "border-l-2 border-l-success/40" : ""}`}
                     onClick={() => setExpandedContact(expandedContact === i ? null : i)}
                   >
@@ -222,7 +222,7 @@ function CompanyAccordion({ group, hasEnrichedResults }: { group: CompanyGroup; 
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </React.Fragment>
               ))}
             </TableBody>
           </Table>

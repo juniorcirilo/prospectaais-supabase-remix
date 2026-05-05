@@ -26,6 +26,7 @@ export default function SettingsPage() {
 
   // AI Providers state
   const [aiActiveProvider, setAiActiveProvider] = useState<AIProvider>("groq");
+  const [aiActiveModel, setAiActiveModel] = useState<string>("llama-3.3-70b-versatile");
   const [aiProviders, setAiProviders] = useState<Partial<Record<AIProvider, string>>>({});
 
   // Registration lock
@@ -56,6 +57,7 @@ export default function SettingsPage() {
           "elevenlabs_similarity_boost",
           "elevenlabs_speed",
           "ai_active_provider",
+          "ai_active_model",
           "ai_provider_key_groq",
           "ai_provider_key_gemini",
           "ai_provider_key_openai",
@@ -70,6 +72,7 @@ export default function SettingsPage() {
           if (row.key === "elevenlabs_api_key" && row.value) setElApiKey(row.value);
           if (row.key === "elevenlabs_voice_id" && row.value) setElVoiceId(row.value);
           if (row.key === "ai_active_provider" && row.value) setAiActiveProvider(row.value as AIProvider);
+          if (row.key === "ai_active_model" && row.value) setAiActiveModel(row.value);
           if (row.key === "ai_provider_key_groq" && row.value) setAiProviders((p) => ({ ...p, groq: row.value }));
           if (row.key === "ai_provider_key_gemini" && row.value) setAiProviders((p) => ({ ...p, gemini: row.value }));
           if (row.key === "ai_provider_key_openai" && row.value) setAiProviders((p) => ({ ...p, openai: row.value }));
@@ -109,6 +112,7 @@ export default function SettingsPage() {
         { key: "elevenlabs_similarity_boost", value: String(elSimilarityBoost) },
         { key: "elevenlabs_speed", value: String(elSpeed) },
         { key: "ai_active_provider", value: aiActiveProvider },
+        { key: "ai_active_model", value: aiActiveModel },
         { key: "ai_provider_key_groq", value: aiProviders.groq || "" },
         { key: "ai_provider_key_gemini", value: aiProviders.gemini || "" },
         { key: "ai_provider_key_openai", value: aiProviders.openai || "" },
@@ -172,22 +176,24 @@ export default function SettingsPage() {
 
         {isAdmin && (
           <>
-            <TabsContent value="apollo" className="space-y-4">
+            <TabsContent forceMount value="apollo" className="space-y-4">
               <StepApollo apiKey={apolloApiKey} onApiKeyChange={setApolloApiKey} />
             </TabsContent>
 
-            <TabsContent value="ai" className="space-y-4">
+            <TabsContent forceMount value="ai" className="space-y-4">
               <AIProvidersSettings
                 activeProvider={aiActiveProvider}
+                activeModel={aiActiveModel}
                 providers={aiProviders}
                 onProviderChange={setAiActiveProvider}
+                onModelChange={setAiActiveModel}
                 onKeyChange={(provider, key) => setAiProviders((p) => ({ ...p, [provider]: key }))}
                 onSave={handleSave}
                 isSaving={saving}
               />
             </TabsContent>
 
-            <TabsContent value="api" className="space-y-4">
+            <TabsContent forceMount value="api" className="space-y-4">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2"><Key className="w-4 h-4" /> Evolution API</CardTitle>
@@ -243,7 +249,7 @@ export default function SettingsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="elevenlabs" className="space-y-4">
+            <TabsContent forceMount value="elevenlabs" className="space-y-4">
               <ElevenLabsSettings
                 apiKey={elApiKey}
                 voiceId={elVoiceId}
@@ -262,7 +268,7 @@ export default function SettingsPage() {
           </>
         )}
 
-        <TabsContent value="general" className="space-y-4">
+        <TabsContent forceMount value="general" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2"><Globe className="w-4 h-4" /> Preferências</CardTitle>

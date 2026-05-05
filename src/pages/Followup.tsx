@@ -65,18 +65,18 @@ export default function Followup() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="sequences">
+        <TabsContent forceMount value="sequences">
           <SequencesList
             onNewSequence={() => { setEditingSequence(null); setView("chat"); }}
             onSelectSequence={(seq) => { setSelectedSequence(seq); setView("detail"); }}
           />
         </TabsContent>
 
-        <TabsContent value="monitor">
+        <TabsContent forceMount value="monitor">
           <MonitorTab />
         </TabsContent>
 
-        <TabsContent value="logs">
+        <TabsContent forceMount value="logs">
           <LogsTab />
         </TabsContent>
       </Tabs>

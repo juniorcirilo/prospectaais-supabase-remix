@@ -1,6 +1,8 @@
 // Shared AI Provider abstraction
 // Suporta: Lovable, Gemini, OpenAI, Groq, Anthropic
 
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 export type AIProvider = "lovable" | "gemini" | "openai" | "groq" | "anthropic";
 
 export interface AIProviderConfig {
@@ -31,12 +33,77 @@ export function detectAIProvider(): AIProviderConfig {
   if (openaiKey) return { provider: "openai", apiKey: openaiKey, model: "gpt-4o-mini" };
 
   const groqKey = Deno.env.get("GROQ_API_KEY");
-  if (groqKey) return { provider: "groq", apiKey: groqKey, model: "mixtral-8x7b-32768" };
+  if (groqKey) return { provider: "groq", apiKey: groqKey, model: "llama-3.3-70b-versatile" };
 
   const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (anthropicKey) return { provider: "anthropic", apiKey: anthropicKey, model: "claude-3-5-sonnet-20241022" };
 
   throw new Error("Nenhuma chave de IA configurada. Configure uma de: LOVABLE_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY");
+}
+
+const PROVIDER_MODELS: Record<AIProvider, string> = {
+  lovable: "google/gemini-2.5-flash",
+  gemini: "gemini-2.5-flash",
+  openai: "gpt-4o-mini",
+  groq: "llama-3.3-70b-versatile",
+  anthropic: "claude-3-5-sonnet-20241022",
+};
+
+/**
+ * Detecta o provider de IA lendo primeiro da tabela app_settings do banco
+ * (onde a UI de Configurações salva as chaves), com fallback para env vars.
+ */
+export async function detectAIProviderWithDB(): Promise<AIProviderConfig> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (supabaseUrl && serviceKey) {
+    try {
+      const client = createClient(supabaseUrl, serviceKey);
+      const { data } = await client
+        .from("app_settings")
+        .select("key, value")
+        .in("key", [
+          "ai_active_provider",
+          "ai_active_model",
+          "ai_provider_key_groq",
+          "ai_provider_key_gemini",
+          "ai_provider_key_openai",
+          "ai_provider_key_lovable",
+          "ai_provider_key_anthropic",
+        ]);
+
+      if (data && data.length > 0) {
+        const settings: Record<string, string> = {};
+        for (const row of data) {
+          if (row.value) settings[row.key] = row.value;
+        }
+
+        const activeProvider = settings["ai_active_provider"] as AIProvider | undefined;
+        const activeModel = settings["ai_active_model"] || undefined;
+        if (activeProvider && settings[`ai_provider_key_${activeProvider}`]) {
+          return {
+            provider: activeProvider,
+            apiKey: settings[`ai_provider_key_${activeProvider}`],
+            model: activeModel ?? PROVIDER_MODELS[activeProvider],
+          };
+        }
+
+        // Nenhum provider ativo definido — usa o primeiro com chave disponível
+        const providerOrder: AIProvider[] = ["lovable", "gemini", "openai", "groq", "anthropic"];
+        for (const p of providerOrder) {
+          if (settings[`ai_provider_key_${p}`]) {
+            return { provider: p, apiKey: settings[`ai_provider_key_${p}`], model: activeModel ?? PROVIDER_MODELS[p] };
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[detectAIProviderWithDB] Falha ao ler DB, usando env vars:", e);
+    }
+  }
+
+  // Fallback: env vars (Supabase Secrets ou .env.local)
+  return detectAIProvider();
 }
 
 /**
@@ -70,7 +137,7 @@ export async function callAIUnified(
   options: AIProviderOptions & { modelOverride?: string },
 ): Promise<{ ok: boolean; status: number; text: string; raw: any }>
 {
-  const cfg = detectAIProvider();
+  const cfg = await detectAIProviderWithDB();
   if (options.modelOverride) cfg.model = options.modelOverride;
 
   const resp = await callAIProvider(cfg, { ...options, stream: false });
