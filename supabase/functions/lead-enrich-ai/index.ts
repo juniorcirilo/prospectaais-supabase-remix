@@ -781,6 +781,7 @@ Deno.serve(async (req) => {
 
         const updatedFields = {
           ...((existing.custom_fields as any) || {}),
+          ...(c.email ? { email: c.email } : {}),
           ai_summary: c.ai_summary || "", ai_tags: c.ai_tags || [],
           ai_score: c.ai_score || 0, ai_insights: c.ai_insights || "",
           company_description: c.company_description || "", company_services: c.company_services || "",

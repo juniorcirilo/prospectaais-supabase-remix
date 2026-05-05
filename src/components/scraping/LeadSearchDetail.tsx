@@ -189,8 +189,20 @@ function CompanyAccordion({ group, hasEnrichedResults }: { group: CompanyGroup; 
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{c.title || "-"}</TableCell>
-                    <TableCell className="text-xs font-mono">{c.phone || "-"}</TableCell>
-                    <TableCell className="text-xs">{c.email || "-"}</TableCell>
+                    <TableCell className="text-xs font-mono">
+                      {c.phone
+                        ? c.phone
+                        : c.company_phone
+                          ? <span className="text-muted-foreground" title="Telefone da empresa">{c.company_phone}</span>
+                          : "-"}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {c.email
+                        ? c.email
+                        : c.company_email
+                          ? <span className="text-muted-foreground" title="Email da empresa">{c.company_email}</span>
+                          : "-"}
+                    </TableCell>
                     {hasEnrichedResults && (
                       <TableCell>{c.ai_score ? <ScoreBar score={c.ai_score} /> : <span className="text-xs text-muted-foreground">-</span>}</TableCell>
                     )}
@@ -435,8 +447,20 @@ export default function LeadSearchDetail({ search, onBack }: Props) {
                     <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
                     <TableCell className="text-sm font-medium">{c.name || "-"}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{c.title || "-"}</TableCell>
-                    <TableCell className="text-xs font-mono">{c.phone || "-"}</TableCell>
-                    <TableCell className="text-xs">{c.email || "-"}</TableCell>
+                    <TableCell className="text-xs font-mono">
+                      {c.phone
+                        ? c.phone
+                        : c.company_phone
+                          ? <span className="text-muted-foreground" title="Telefone da empresa">{c.company_phone}</span>
+                          : "-"}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {c.email
+                        ? c.email
+                        : c.company_email
+                          ? <span className="text-muted-foreground" title="Email da empresa">{c.company_email}</span>
+                          : "-"}
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{c.city || "-"}</TableCell>
                     {hasEnrichedResults && (
                       <TableCell>{c.ai_score ? <ScoreBar score={c.ai_score} /> : <span className="text-xs text-muted-foreground">-</span>}</TableCell>
