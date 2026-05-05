@@ -254,7 +254,7 @@ export default function Scraping() {
                                 <Button
                                   variant="ghost" size="icon"
                                   className="h-7 w-7 text-warning hover:text-warning"
-                                  onClick={() => resumeEnrichment.mutate(s.id)}
+                                  onClick={() => resumeEnrichment.mutate(s)}
                                   disabled={resumeEnrichment.isPending}
                                   title={
                                     stuck ? "Retomar enriquecimento travado"

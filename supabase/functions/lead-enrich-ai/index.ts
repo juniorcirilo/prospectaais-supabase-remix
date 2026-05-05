@@ -49,12 +49,14 @@ Deno.serve(async (req) => {
     if (searchErr || !search) return jsonResp({ success: false, error: "Search not found" }, 404);
 
     // Determine step and run_id
-    const runId = requestedRunId || crypto.randomUUID();
-    const currentStep = requestedStep || "match";
-    const cursor = requestedCursor || 0;
+    // If this is a fresh resume call (no step/cursor/runId provided), use saved checkpoint from DB
+    const isResume = !requestedStep && !requestedCursor && !requestedRunId;
+    const runId = requestedRunId || (isResume && search.enrich_run_id) || crypto.randomUUID();
+    const currentStep = requestedStep || (isResume && search.enrich_step) || "match";
+    const cursor = requestedCursor ?? (isResume ? (search.enrich_cursor ?? 0) : 0);
 
-    // Check for stale run — if another run is active, abort
-    if (search.enrich_run_id && search.enrich_run_id !== runId && requestedRunId) {
+    // Check for stale run — if another run is active AND this is an explicit re-invoke (not a resume), abort
+    if (search.enrich_run_id && search.enrich_run_id !== runId && requestedRunId && !isResume) {
       console.log(`[lead-enrich] Aborting stale run ${runId}, active: ${search.enrich_run_id}`);
       return jsonResp({ success: false, error: "Another run is active" });
     }

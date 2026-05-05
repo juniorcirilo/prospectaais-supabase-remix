@@ -209,12 +209,19 @@ export function useLeadSearches() {
 
   // Resume enrichment from last checkpoint (same as enrich but explicitly for stale/stuck searches)
   const resumeEnrichment = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (search: LeadSearch) => {
       // Reset heartbeat to signal a fresh attempt, keep cursor/step intact
       await supabase.from("lead_searches").update({
         enrich_heartbeat: new Date().toISOString(),
-      } as any).eq("id", id);
-      const { error } = await supabase.functions.invoke("lead-enrich-ai", { body: { searchId: id } });
+      } as any).eq("id", search.id);
+      // Pass saved checkpoint so the edge function resumes from where it stopped
+      const { error } = await supabase.functions.invoke("lead-enrich-ai", {
+        body: {
+          searchId: search.id,
+          step: search.enrich_step || undefined,
+          cursor: search.enrich_cursor ?? undefined,
+        },
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -236,7 +243,7 @@ export function useLeadSearches() {
   const isSearchStuck = useCallback((search: LeadSearch): boolean => {
     if (search.status !== "enriching") return false;
     if (!search.enrich_heartbeat) return true;
-    return (Date.now() - new Date(search.enrich_heartbeat).getTime()) > 3 * 60 * 1000;
+    return (Date.now() - new Date(search.enrich_heartbeat).getTime()) > 5 * 60 * 1000; // 5 min (Apollo rate-limit cooldowns can take up to 45s)
   }, []);
 
   return {

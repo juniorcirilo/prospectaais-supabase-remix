@@ -283,7 +283,7 @@ export default function LeadSearchDetail({ search, onBack }: Props) {
           {(canEnrich || isPartialComplete || search.status === "failed") && (
             <Button
               variant="outline" size="sm"
-              onClick={() => resumeEnrichment.mutate(search.id)}
+              onClick={() => resumeEnrichment.mutate(search)}
               disabled={resumeEnrichment.isPending || enrichSearch.isPending}
             >
               <Sparkles className="w-4 h-4 mr-1" />
@@ -354,7 +354,7 @@ export default function LeadSearchDetail({ search, onBack }: Props) {
                 {isHeartbeatStale && (
                   <Button
                     variant="outline" size="sm"
-                    onClick={() => resumeEnrichment.mutate(search.id)}
+                    onClick={() => resumeEnrichment.mutate(search)}
                     disabled={resumeEnrichment.isPending}
                     className="text-xs"
                   >

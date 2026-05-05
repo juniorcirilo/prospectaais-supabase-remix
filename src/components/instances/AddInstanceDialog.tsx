@@ -85,18 +85,21 @@ export function AddInstanceDialog({ open, onOpenChange }: AddInstanceDialogProps
       });
 
       console.log('📥 Resposta recebida:', { data, error });
-      
-      // Tenta extrair a mensagem de erro completa
+
       if (error) {
-        console.error('❌ Erro completo:', {
-          status: (error as any)?.context?.response?.status,
-          statusText: (error as any)?.context?.response?.statusText,
-          data: (error as any)?.context?.response?.data,
-          message: error.message,
-        });
+        // Extrai o corpo real da resposta quando a Edge Function retorna status não-2xx
+        let errorMessage = error.message;
+        try {
+          const errorBody = await (error as any).context.json();
+          console.error('❌ Erro do servidor:', errorBody);
+          errorMessage = errorBody?.error || errorBody?.message || errorMessage;
+        } catch {
+          console.error('❌ Erro (sem body):', error.message);
+        }
+        throw new Error(errorMessage);
       }
-      
-      if (error || !data?.success) throw new Error(data?.error || error?.message || 'Erro ao criar instância');
+
+      if (!data?.success) throw new Error(data?.error || 'Erro ao criar instância');
 
       setInstanceId(data.instance_id);
       queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
